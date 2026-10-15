@@ -2,7 +2,7 @@
 
 Reproduces the workload from
 [The Garbage Collection Trap](https://gregclough.com/2026/10/07/the-garbage-collection-trap-how-pg_stat_statements-garbage-collection-triggered-patroni-failovers/)
-and measures how long each pg_stat_statements GC holds `pgss->lock` exclusively.
+blog post, and measures how long each pg_stat_statements GC holds `pgss->lock` exclusively.
 
 ```bash
 ./run_rig.sh                      # defaults: pg_stat_statements.max=5000, stop after 10 GCs
@@ -52,5 +52,20 @@ LOG:  pg_stat_statements entry_dealloc: duration=0.706 ms entries=5000 evicted=2
   tens of ms. When big queries dominate the table (`FILLER_WORKERS=0`), the file can reach
   several GB before GC fires. On a box with limited RAM that can make `gc_qtexts` fail and
   discard every query text (logged as `FAILED`).
+
+## Results
+
+Long garbage collections only appear under very heavy loads, which on my 8 CPU 32GB test server required this configuration:
+
+```bash
+MIN_PARAMS=200000
+MAX_PARAMS=400000
+PGSS_MAX=100000
+BIG_WORKERS=16
+FILLER_WORKERS=16
+TARGET_GC=100
+```
+
+That resulted in several pg_stat_statements garbage collections, most of which exceeded 2,000ms:
 
 <img src="probe_latency@2x.png" alt="Probe latency" width="800">
