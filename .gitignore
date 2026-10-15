@@ -1,4 +1,4 @@
-build/
-pg/
-run/
+build/*
+pg/*
+run/data/*
 *.out

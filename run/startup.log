@@ -1,0 +1,8 @@
+2026-10-15 03:48:24.212 CDT [617945] LOG:  redirecting log output to logging collector process
+2026-10-15 03:48:24.212 CDT [617945] HINT:  Future log output will appear in directory "log".
+2026-10-15 05:07:27.496 CDT [735920] LOG:  redirecting log output to logging collector process
+2026-10-15 05:07:27.496 CDT [735920] HINT:  Future log output will appear in directory "log".
+2026-10-15 05:10:02.983 CDT [740678] LOG:  redirecting log output to logging collector process
+2026-10-15 05:10:02.983 CDT [740678] HINT:  Future log output will appear in directory "log".
+2026-10-15 05:19:25.038 CDT [5173] LOG:  redirecting log output to logging collector process
+2026-10-15 05:19:25.038 CDT [5173] HINT:  Future log output will appear in directory "log".
