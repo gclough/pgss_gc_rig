@@ -1,0 +1,113 @@
+--- a/contrib/pg_stat_statements/pg_stat_statements.c
++++ b/contrib/pg_stat_statements/pg_stat_statements.c
+@@ -292,6 +292,7 @@
+ static bool pgss_track_planning = false;	/* whether to track planning
+ 											 * duration */
+ static bool pgss_save = true;	/* whether to save stats across shutdown */
++static bool pgss_log_gc = false;	/* log duration of dealloc / text GC */
+ 
+ 
+ #define pgss_enabled(level) \
+@@ -455,6 +456,17 @@
+ 							 NULL,
+ 							 NULL);
+ 
++	DefineCustomBoolVariable("pg_stat_statements.log_gc",
++							 "Log the duration of entry deallocation and query text garbage collection.",
++							 NULL,
++							 &pgss_log_gc,
++							 false,
++							 PGC_SUSET,
++							 0,
++							 NULL,
++							 NULL,
++							 NULL);
++
+ 	MarkGUCPrefixReserved("pg_stat_statements");
+ 
+ 	/*
+@@ -2100,8 +2112,13 @@
+ 	pgssEntry  *entry;
+ 	int			nvictims;
+ 	int			i;
++	int			nentries;
+ 	Size		tottextlen;
+ 	int			nvalidtexts;
++	instr_time	start_time;
++	instr_time	duration;
++
++	INSTR_TIME_SET_CURRENT(start_time);
+ 
+ 	/*
+ 	 * Sort entries by usage and deallocate USAGE_DEALLOC_PERCENT of them.
+@@ -2161,6 +2178,17 @@
+ 
+ 	pfree(entries);
+ 
++	if (pgss_log_gc)
++	{
++		INSTR_TIME_SET_CURRENT(duration);
++		INSTR_TIME_SUBTRACT(duration, start_time);
++		nentries = hash_get_num_entries(pgss_hash) + nvictims;
++		ereport(LOG,
++				(errmsg("pg_stat_statements entry_dealloc: duration=%.3f ms entries=%d evicted=%d mean_query_len=%zu",
++						INSTR_TIME_GET_MILLISEC(duration), nentries, nvictims,
++						pgss->mean_query_len)));
++	}
++
+ 	/* Increment the number of times entries are deallocated */
+ 	{
+ 		volatile pgssSharedState *s = (volatile pgssSharedState *) pgss;
+@@ -2458,6 +2486,9 @@
+ 	pgssEntry  *entry;
+ 	Size		extent;
+ 	int			nentries;
++	Size		old_extent;
++	instr_time	start_time;
++	instr_time	duration;
+ 
+ 	/*
+ 	 * When called from pgss_store, some other session might have proceeded
+@@ -2467,6 +2498,9 @@
+ 	if (!need_gc_qtexts())
+ 		return;
+ 
++	INSTR_TIME_SET_CURRENT(start_time);
++	old_extent = pgss->extent;
++
+ 	/*
+ 	 * Load the old texts file.  If we fail (out of memory, for instance),
+ 	 * invalidate query texts.  Hopefully this is rare.  It might seem better
+@@ -2567,6 +2601,16 @@
+ 
+ 	free(qbuffer);
+ 
++	if (pgss_log_gc)
++	{
++		INSTR_TIME_SET_CURRENT(duration);
++		INSTR_TIME_SUBTRACT(duration, start_time);
++		ereport(LOG,
++				(errmsg("pg_stat_statements gc_qtexts: duration=%.3f ms old_size=%zu new_size=%zu entries=%d",
++						INSTR_TIME_GET_MILLISEC(duration), old_extent, extent,
++						nentries)));
++	}
++
+ 	/*
+ 	 * OK, count a garbage collection cycle.  (Note: even though we have
+ 	 * exclusive lock on pgss->lock, we must take pgss->mutex for this, since
+@@ -2614,6 +2658,15 @@
+ 	/* Reset mean_query_len to match the new state */
+ 	pgss->mean_query_len = ASSUMED_LENGTH_INIT;
+ 
++	if (pgss_log_gc)
++	{
++		INSTR_TIME_SET_CURRENT(duration);
++		INSTR_TIME_SUBTRACT(duration, start_time);
++		ereport(LOG,
++				(errmsg("pg_stat_statements gc_qtexts: duration=%.3f ms old_size=%zu new_size=0 entries=0 FAILED (query texts discarded)",
++						INSTR_TIME_GET_MILLISEC(duration), old_extent)));
++	}
++
+ 	/*
+ 	 * Bump the GC count even though we failed.
+ 	 *
