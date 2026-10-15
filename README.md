@@ -52,3 +52,5 @@ LOG:  pg_stat_statements entry_dealloc: duration=0.706 ms entries=5000 evicted=2
   tens of ms. When big queries dominate the table (`FILLER_WORKERS=0`), the file can reach
   several GB before GC fires. On a box with limited RAM that can make `gc_qtexts` fail and
   discard every query text (logged as `FAILED`).
+
+<img src="probe_latency@2x.png" alt="Probe latency" width="800">
